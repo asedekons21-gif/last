@@ -47,6 +47,8 @@ export function ReportForm({ report, onSubmit, onCancel }) {
     }
 
     try {
+      console.log("[v0] Submitting report data:", formData)
+
       const response = await fetch("/api/reports", {
         method: "POST",
         headers: {
@@ -60,12 +62,26 @@ export function ReportForm({ report, onSubmit, onCancel }) {
         }),
       })
 
+      console.log("[v0] Response status:", response.status)
+      console.log("[v0] Response headers:", Object.fromEntries(response.headers.entries()))
+
+      const contentType = response.headers.get("content-type")
+      if (!contentType || !contentType.includes("application/json")) {
+        const textResponse = await response.text()
+        console.error("[v0] Non-JSON response received:", textResponse)
+        throw new Error(
+          `Server returned HTML instead of JSON. This usually means there's an authentication or routing issue. Response: ${textResponse.substring(0, 200)}...`,
+        )
+      }
+
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to save report")
+        console.error("[v0] API error response:", errorData)
+        throw new Error(errorData.error || `HTTP ${response.status}: Failed to save report`)
       }
 
       const result = await response.json()
+      console.log("[v0] Success response:", result)
 
       alert(`Laporan berhasil disimpan!\nNomor Tracking: ${result.report.trackingNumber}`)
 
@@ -76,7 +92,7 @@ export function ReportForm({ report, onSubmit, onCancel }) {
         trackingNumber: result.report.trackingNumber,
       })
     } catch (error) {
-      console.error("Error saving report:", error)
+      console.error("[v0] Error saving report:", error)
       alert(`Gagal menyimpan laporan: ${error.message}`)
     }
   }

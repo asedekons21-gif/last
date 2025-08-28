@@ -16,21 +16,55 @@ export async function OPTIONS(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const reportData = await request.json()
+    console.log("[v0] POST /api/reports - Starting request processing")
+
+    let reportData
+    try {
+      reportData = await request.json()
+      console.log("[v0] Successfully parsed request JSON")
+    } catch (jsonError) {
+      console.error("[v0] Failed to parse JSON:", jsonError)
+      return NextResponse.json(
+        { error: "Invalid JSON in request body" },
+        {
+          status: 400,
+          headers: {
+            "Access-Control-Allow-Origin": process.env.NODE_ENV === "development" ? "http://localhost:3000" : "*",
+            "Access-Control-Allow-Credentials": "true",
+          },
+        },
+      )
+    }
+
     const { originalFiles, ...reportFields } = reportData
 
     const cookieStore = cookies()
     const supabase = createServerClient(cookieStore)
 
+    console.log("[v0] Attempting to get user from Supabase")
     const {
       data: { user },
       error: authError,
     } = await supabase.auth.getUser()
 
-    if (authError || !user) {
-      console.error("[v0] Authentication error:", authError)
+    if (authError) {
+      console.error("[v0] Authentication error details:", authError)
       return NextResponse.json(
-        { error: "Unauthorized" },
+        { error: "Authentication failed", details: authError.message },
+        {
+          status: 401,
+          headers: {
+            "Access-Control-Allow-Origin": process.env.NODE_ENV === "development" ? "http://localhost:3000" : "*",
+            "Access-Control-Allow-Credentials": "true",
+          },
+        },
+      )
+    }
+
+    if (!user) {
+      console.error("[v0] No user found in session")
+      return NextResponse.json(
+        { error: "No authenticated user found" },
         {
           status: 401,
           headers: {
@@ -168,8 +202,21 @@ export async function POST(request: NextRequest) {
       },
     )
   } catch (error) {
-    console.error("[v0] Error in report creation:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error("[v0] Unexpected error in report creation:", error)
+    return NextResponse.json(
+      {
+        error: "Internal server error",
+        details: error instanceof Error ? error.message : "Unknown error",
+        stack: process.env.NODE_ENV === "development" ? (error instanceof Error ? error.stack : undefined) : undefined,
+      },
+      {
+        status: 500,
+        headers: {
+          "Access-Control-Allow-Origin": process.env.NODE_ENV === "development" ? "http://localhost:3000" : "*",
+          "Access-Control-Allow-Credentials": "true",
+        },
+      },
+    )
   }
 }
 
